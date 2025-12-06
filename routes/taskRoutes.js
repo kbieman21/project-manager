@@ -1,6 +1,6 @@
-
 const express = require("express");
 const { authMiddleware } = require("../middlewares/auth");
+const Task = require("../models/Task");
 const Project = require("../models/Project");
 
 const taskRouter = express.Router();
@@ -9,80 +9,16 @@ const taskRouter = express.Router();
 taskRouter.use(authMiddleware);
 
 /**
- * GET /api/projects
+ * GET /api/projects/:projectId/tasks
  */
 taskRouter.get("/:projectId/tasks", async (req, res) => {
-//   try {
-//     const userProjects = await Project.find({ user: req.user._id });
-
-//     res.json(userProjects);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: error.message });
-//   }
-console.log("get all tasks");
-res.json({message: 'Success'})
-
-});
-
-/**
- * GET /api/projects/:projectId
- */
-taskRouter.get("/:projectId", async (req, res) => {
   try {
-    const { projectId } = req.params;
-    const project = await Project.findById(projectId);
-
-    if (!project) {
-      return res
-        .status(404)
-        .json({ message: `Project with id: ${projectId} not found!` });
-    }
-
-    // Authorization
-    console.log(req.user._id);
-    console.log(project.user);
-    
-    if (project.user.toString() !== req.user._id) {
-      return res.status(403).json({ message: "User is not authorized!" });
-    }
-
-    res.json(project);
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/projects
- */
-// projectRouter.post("/", async (req, res) => {
-//   try {
-//     const newProject = await Project.create({
-//       ...req.body,
-//       user: req.user._id,
-//     });
-
-//     res.status(201).json(newProject);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: error.message });
-//   }
-// });
-
-/**
- * POST /api/projects
- */
-taskRouter.post("/", async (req, res) => {
-  try {
-    const newProject = await Project.create({
-      ...req.body,
-      user: req.user._id,
+    const userTasks = await Task.find({
+      project: req.params.projectId,
+      // user: req.user._id,
     });
 
-    res.status(201).json(newProject);
+    res.json(userTasks);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
@@ -90,40 +26,88 @@ taskRouter.post("/", async (req, res) => {
 });
 
 /**
- * PUT /api/projects/projectId
+ * POST /api/projects/:projectId/tasks
  */
-taskRouter.put("/:projectId", async (req, res) => {
+taskRouter.post("/:projectId/tasks", async (req, res) => {
   try {
-    const updateProject = await Project.findById(req.params.projectId) 
+    const newTask = await Task.create({
+      ...req.body,
+      project: req.params.projectId,
+      // user: req.user._id,
+    });
 
-    if(req.user._id !== updateProject.user.toString()){ //localhost/project/123                       |mila's lab
-        return res.status(403).json({message: "User is not authorized to update this project"})
-    }
-
-    const project = await Project.findByIdAndUpdate( req.params.projectId, req.body,{new:true} )  //questions
-    res.json(project);
-
+    res.status(201).json(newTask);
   } catch (error) {
-    res.status(500).json({error: error.message})
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 /**
- * DELETE /api/projects/projectId
+ * PUT /api/projects/projectId/tasks/:taskId
  */
-taskRouter.delete("/:projectId", async (req, res) => {
+taskRouter.put("/:projectId/tasks/:taskId", async (req, res) => {
   try {
-     const deleteProject = await Project.findById(req.params.projectId) 
+    const task = await Task.findById(req.params.taskId);
 
-    if(req.user._id !== deleteProject.user.toString()){ //localhost/project/123                       |mila's lab
-        return res.status(403).json({message: "User is not authorized to update this project"})
+     if (!task) {
+      return res.status(404).json({ error: "Task not Found!" });
     }
 
-    const project = await Project.findByIdAndDelete(req.params.projectId);
+    const project = await Project.findById(req.params.projectId);
 
-    res.json({message: "Project deleted"})
+    if (!project) {
+      return res.status(404).json({ error: "Task does not Belong to any project!" });
+    }
+
+    if (project.user.toString() === req.user._id) {
+      const newTask = await Task.findByIdAndUpdate(req.params.taskId, req.body, {
+        new: true,
+        runValidators: true,
+      });
+      res.status(200).json(newTask);
+    }else{
+      res.status(403).json({ error: "You have no access to this task" });
+
+    }
   } catch (error) {
-     res.status(500).json({error: error.message})
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/projects/projectId/tasks/:taskId
+ */
+taskRouter.delete("/:projectId/tasks/:taskId", async (req, res) => {
+  try {
+    // 1. Find the task by ID
+    const taskToDelet = await Task.findById(req.params.taskId);
+
+    if (!taskToDelet) {
+      return res.status(404).json({ error: "Task not found!" });
+    }
+
+     // 2. Find the project the task belongs to
+     const project = await Project.findById(req.params.projectId);
+
+    if (!project) {
+      return res.status(404).json({ error: "Task does not belong to any project!" });
+    }
+
+
+    // 3. Authorization check (Does the user own the project?)
+    if (req.user._id !== project.user.toString()) {
+      return res
+        .status(403)
+        .json({ error: "User is not authorized to delete this task" });
+    }
+
+    // 4. Delete the task
+    const task = await Task.findByIdAndDelete(req.params.taskId);
+
+    res.status(200).json({ message: "Task deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
