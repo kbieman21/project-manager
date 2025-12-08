@@ -15,7 +15,7 @@ const userRouter = express.Router();
 /**
  * GET /api/user/
  */
- // userRouter.get("/", authMiddleware, adminOnly, getAllUsers); //this might be a  problem
+ // userRouter.get("/", authMiddleware, adminOnly, getAllUsers); //this might be a  problem in development
 userRouter.get("/", authMiddleware, getAllUsers);
 
 /**
